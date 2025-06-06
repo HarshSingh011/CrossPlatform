@@ -1,0 +1,33 @@
+{
+  "name": "syncly",
+  "version": "1.0.0",
+  "description": "a backend for discord type live chatting app",
+  "main": "index.js",
+  "scripts": {
+    "test": "node vansh"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vanshguptaji/Syncly.git"
+  },
+  "keywords": [
+    "kalyani"
+  ],
+  "author": "Ayushman, Harsh, Vansh",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/vanshguptaji/Syncly/issues"
+  },
+  "homepage": "https://github.com/vanshguptaji/Syncly#readme",
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
+    "http": "^0.0.1-security",
+    "mongoose": "^8.15.1",
+    "nodemon": "^3.1.10",
+    "socket.io": "^4.8.1"
+  }
+}

@@ -1,0 +1,25 @@
+# Ignore environment variable files
+.env
+.env.*
+
+# Ignore node_modules directory
+node_modules/
+
+# Ignore npm debug log files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Ignore OS-specific files
+.DS_Store
+
+# Ignore logs
+logs
+*.log
+
+# Ignore coverage directory
+coverage/
+
+# Ignore build output
+dist/
+build/
