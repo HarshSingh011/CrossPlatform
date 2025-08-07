@@ -3,16 +3,18 @@ const otpGenerator = require('otp-generator');
 
 // Store OTPs with their expiration time
 const otpStorage = {};
+exports.otpStorage = otpStorage;
 
 // OTP expiration time in milliseconds (1 minute)
 const OTP_EXPIRY_TIME = 60 * 1000;
 
 const transporter = nodemailer.createTransport({
-  service: process.env.EMAIL_SERVICE,
-  secure: true, // Use HTTPS
+  host: process.env.EMAIL_HOST,
+  port: process.env.EMAIL_PORT,
+  secure: true, // true for port 465
   auth: {
     user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASSWORD
+    pass: process.env.EMAIL_PASS
   }
 });
 
@@ -62,11 +64,11 @@ exports.sendOTPEmail = async (email, otp, type = 'Registration OTP') => {
   let subject, heading, message;
   
   if (type === 'Password Reset OTP') {
-    subject = 'Syncly - Password Reset OTP';
+    subject = 'Your Password Reset OTP';
     heading = 'Reset Your Password';
     message = 'You requested to reset your password. To continue with the password reset process, please use the following OTP:';
   } else {
-    subject = 'Syncly - Your Registration OTP';
+    subject = 'Your Registration OTP from Hospital';
     heading = 'Welcome to Syncly!';
     message = 'Thank you for registering with us. To complete your registration, please use the following OTP:';
   }

@@ -21,18 +21,6 @@ app.use(cors({
 }));
 
 // Set secure cookies in production
-app.use((req, res, next) => {
-  res.cookie = (name, value, options) => {
-    const secureOptions = {
-      ...options,
-      secure: process.env.NODE_ENV === 'production' || req.secure,
-      httpOnly: true,
-      sameSite: 'strict'
-    };
-    return res.cookie(name, value, secureOptions);
-  };
-  next();
-});
 
 // Serve static files from uploads directory
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));

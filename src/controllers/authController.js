@@ -3,140 +3,75 @@ const jwt = require('jsonwebtoken');
 const { generateOTP, sendOTPEmail, verifyOTP } = require('../utils/otpUtils');
 const { isValidEmail, isValidPassword, getPasswordValidationErrors } = require('../utils/validationUtils');
 
+const tempUserStorage = require('../models/TempUserStorage');
 exports.registerOTP = async (req, res) => {
   try {
     const { username, email, password } = req.body;
 
     if (!isValidEmail(email)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid email format'
-      });
+      return res.status(400).json({ success: false, message: 'Invalid email format' });
     }
-
     if (!isValidPassword(password)) {
       const errors = getPasswordValidationErrors(password);
-      return res.status(400).json({
-        success: false,
-        message: 'Password does not meet requirements',
-        errors
-      });
+      return res.status(400).json({ success: false, message: 'Password does not meet requirements', errors });
     }
-
-    const existingUser = await User.findOne({ 
-      $or: [{ email }, { username }] 
+    // Only block registration if a verified user exists
+    const existingUser = await User.findOne({
+      $or: [{ email }, { username }],
+      isVerified: true
     });
-    
     if (existingUser) {
-      if (existingUser.email === email && !existingUser.isVerified) {
-        const otp = generateOTP(email);
-        await sendOTPEmail(email, otp, 'Registration OTP');
-        
-        return res.status(200).json({
-          success: true,
-          message: 'OTP has been sent to your email',
-          userId: existingUser._id
-        });
-      }
-      
-      return res.status(400).json({ 
-        success: false, 
-        message: 'User with this email or username already exists' 
-      });
-    }    const user = new User({
-      username,
-      email,
-      password,
-      isVerified: false
-    });
-    await user.save();
-
+      return res.status(400).json({ success: false, message: 'User with this email or username already exists' });
+    }
+    // If an unverified user exists, allow re-registration and update temp storage
+    // Check for duplicate in temp storage
+    // Always allow new OTP for pending registration (overwrite old OTP and temp data)
+    tempUserStorage[email] = { username, email, password };
     const otp = generateOTP(email);
     const emailResult = await sendOTPEmail(email, otp, 'Registration OTP');
-
     if (!emailResult.success) {
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to send OTP email',
-        error: emailResult.error
-      });
+      delete tempUserStorage[email];
+      return res.status(500).json({ success: false, message: 'Failed to send OTP email', error: emailResult.error });
     }
-
-    return res.status(201).json({
-      success: true,
-      message: 'OTP has been sent to your email',
-      userId: user._id
-    });
+    return res.status(201).json({ success: true, message: 'OTP has been sent to your email' });
   } catch (error) {
     console.error('Registration error:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Error during registration process',
-      error: error.message
-    });
+    return res.status(500).json({ success: false, message: 'Error during registration process', error: error.message });
   }
 };
 
 exports.verifyAndRegister = async (req, res) => {
   try {
     const { email, otp } = req.body;
-    
     if (!isValidEmail(email)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid email format'
-      });
+      return res.status(400).json({ success: false, message: 'Invalid email format' });
     }
-    
     const otpVerification = verifyOTP(email, otp);
-    
     if (!otpVerification.valid) {
-      return res.status(400).json({
-        success: false,
-        message: otpVerification.message,
-        expired: otpVerification.expired || false
-      });
+      return res.status(400).json({ success: false, message: otpVerification.message, expired: otpVerification.expired || false });
     }
-    
-    const user = await User.findOne({ email });
-    
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
+    // Get registration data from temp storage
+    const regData = tempUserStorage[email];
+    if (!regData) {
+      return res.status(400).json({ success: false, message: 'No registration data found. Please register again.' });
     }
-    
-    user.isVerified = true;
+    // Create user in DB
+    const user = new User({ ...regData, isVerified: true });
     await user.save();
-      const token = jwt.sign(
-      { id: user._id }, 
-      process.env.JWT_SECRET, 
-      { expiresIn: '30d' }
-    );
-
+    delete tempUserStorage[email];
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '30d' });
     res.cookie('token', token, {
       httpOnly: true,
-      maxAge: 30 * 24 * 60 * 60 * 1000, 
+      maxAge: 30 * 24 * 60 * 60 * 1000,
       secure: process.env.NODE_ENV === 'production' || req.secure,
       sameSite: 'strict'
     });
-
     const userToReturn = { ...user.toObject() };
     delete userToReturn.password;
-
-    return res.status(200).json({
-      success: true,
-      message: 'Registration completed successfully',
-      user: userToReturn,
-      token
-    });
+    return res.status(200).json({ success: true, message: 'Registration completed successfully', user: userToReturn, token });
   } catch (error) {
     console.error('OTP verification error:', error);
-    return res.status(500).json({      success: false,
-      message: 'Error during OTP verification',
-      error: error.message
-    });
+    return res.status(500).json({ success: false, message: 'Error during OTP verification', error: error.message });
   }
 };
 
