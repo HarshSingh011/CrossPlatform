@@ -8,7 +8,8 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "ssl:gen": "node generate-ssl-certs.js",
-    "dev:secure": "npm run ssl:gen && nodemon index.js"
+    "dev:secure": "npm run ssl:gen && nodemon index.js",
+    "test-db": "node test-db-connection.js"
   },
   "repository": {
     "type": "git",
