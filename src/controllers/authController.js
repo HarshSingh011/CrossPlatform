@@ -3,7 +3,7 @@ const jwt = require('jsonwebtoken');
 const { generateOTP, sendOTPEmail, verifyOTP } = require('../utils/otpUtils');
 const { isValidEmail, isValidPassword, getPasswordValidationErrors } = require('../utils/validationUtils');
 
-const tempUserStorage = require('../models/TempUserStorage');
+const PendingRegistration = require('../models/PendingRegistration');
 exports.registerOTP = async (req, res) => {
   try {
     const { username, email, password } = req.body;
@@ -11,8 +11,11 @@ exports.registerOTP = async (req, res) => {
     if (!isValidEmail(email)) {
       return res.status(400).json({ success: false, message: 'Invalid email format' });
     }
+    if (typeof password !== 'string' || password.length === 0) {
+      return res.status(400).json({ success: false, message: 'Password is required' });
+    }
     if (!isValidPassword(password)) {
-      const errors = getPasswordValidationErrors(password);
+      const errors = getPasswordValidationErrors(password || '');
       return res.status(400).json({ success: false, message: 'Password does not meet requirements', errors });
     }
     // Only block registration if a verified user exists
@@ -23,17 +26,19 @@ exports.registerOTP = async (req, res) => {
     if (existingUser) {
       return res.status(400).json({ success: false, message: 'User with this email or username already exists' });
     }
-    // If an unverified user exists, allow re-registration and update temp storage
-    // Check for duplicate in temp storage
-    // Always allow new OTP for pending registration (overwrite old OTP and temp data)
-    tempUserStorage[email] = { username, email, password };
+    // Upsert pending registration in DB
+    await PendingRegistration.findOneAndUpdate(
+      { email },
+      { email, username, password, createdAt: new Date() },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
     const otp = generateOTP(email);
     const emailResult = await sendOTPEmail(email, otp, 'Registration OTP');
     if (!emailResult.success) {
-      delete tempUserStorage[email];
+      await PendingRegistration.deleteOne({ email });
       return res.status(500).json({ success: false, message: 'Failed to send OTP email', error: emailResult.error });
     }
-    return res.status(201).json({ success: true, message: 'OTP has been sent to your email' });
+    return res.status(200).json({ success: true, message: 'OTP has been sent to your email' });
   } catch (error) {
     console.error('Registration error:', error);
     return res.status(500).json({ success: false, message: 'Error during registration process', error: error.message });
@@ -50,15 +55,21 @@ exports.verifyAndRegister = async (req, res) => {
     if (!otpVerification.valid) {
       return res.status(400).json({ success: false, message: otpVerification.message, expired: otpVerification.expired || false });
     }
-    // Get registration data from temp storage
-    const regData = tempUserStorage[email];
+    // Get registration data from DB
+    const regData = await PendingRegistration.findOne({ email });
     if (!regData) {
       return res.status(400).json({ success: false, message: 'No registration data found. Please register again.' });
     }
     // Create user in DB
-    const user = new User({ ...regData, isVerified: true });
+    const user = new User({
+      username: regData.username,
+      email: regData.email,
+      password: regData.password,
+      isVerified: true
+    });
     await user.save();
-    delete tempUserStorage[email];
+    // Remove pending registration
+    await PendingRegistration.deleteOne({ email });
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '30d' });
     res.cookie('token', token, {
       httpOnly: true,
@@ -363,42 +374,41 @@ exports.resetPassword = async (req, res) => {
 
 exports.resendOTP = async (req, res) => {
   try {
-    const { email, otpType } = req.body;
+    const { email, username, password, type } = req.body;
+    console.log('resendOTP request body:', req.body);
+    console.log('resendOTP type:', type);
 
     if (!isValidEmail(email)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid email format'
-      });
+      return res.status(400).json({ success: false, message: 'Invalid email format' });
     }
 
-    const user = await User.findOne({ email });
-    
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
+    if (type === 'register') {
+      // Registration flow: only require email, check PendingRegistration in DB
+      const pending = await PendingRegistration.findOne({ email });
+      if (!pending) {
+        return res.status(400).json({ success: false, message: 'No pending registration found for this email. Please register again.' });
+      }
+      const otp = generateOTP(email);
+      const emailResult = await sendOTPEmail(email, otp, 'Registration OTP');
+      if (!emailResult.success) {
+        return res.status(500).json({ success: false, message: 'Failed to send OTP email', error: emailResult.error });
+      }
+      return res.status(200).json({ success: true, message: 'Registration OTP has been resent to your email', email });
+    } else if (type === 'forgot') {
+      // Forgot password flow: only require email
+      const user = await User.findOne({ email, isVerified: true });
+      if (!user) {
+        return res.status(404).json({ success: false, message: 'User not found or not verified' });
+      }
+      const otp = generateOTP(email);
+      const emailResult = await sendOTPEmail(email, otp, 'Password Reset OTP');
+      if (!emailResult.success) {
+        return res.status(500).json({ success: false, message: 'Failed to send OTP email', error: emailResult.error });
+      }
+      return res.status(200).json({ success: true, message: 'Password reset OTP has been sent to your email', email });
+    } else {
+      return res.status(400).json({ success: false, message: 'Invalid type. Must be "register" or "forgot".' });
     }
-
-    const type = otpType === 'password-reset' ? 'Password Reset OTP' : 'Registration OTP';
-    
-    const otp = generateOTP(email);
-    const emailResult = await sendOTPEmail(email, otp, type);
-
-    if (!emailResult.success) {
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to send OTP email',
-        error: emailResult.error
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      message: `New ${type} has been sent to your email`,
-      email
-    });
   } catch (error) {
     console.error('Resend OTP error:', error);
     return res.status(500).json({
