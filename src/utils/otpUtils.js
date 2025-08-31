@@ -61,17 +61,37 @@ exports.verifyOTP = (email, otp) => {
 };
 
 exports.sendOTPEmail = async (email, otp, type = 'Registration OTP') => {
+  console.log('sendOTPEmail called with type:', type);
   let subject, heading, message;
   
-  if (type === 'Password Reset OTP') {
-    subject = 'Your Password Reset OTP';
-    heading = 'Reset Your Password';
-    message = 'You requested to reset your password. To continue with the password reset process, please use the following OTP:';
-  } else {
-    subject = 'Your Registration OTP from Hospital';
-    heading = 'Welcome to Syncly!';
-    message = 'Thank you for registering with us. To complete your registration, please use the following OTP:';
+  switch (type) {
+    case 'Registration OTP':
+      subject = 'Your Register OTP from Hospital';
+      heading = 'Welcome to Syncly!';
+      message = 'Thank you for registering with us. To complete your registration, please use the following OTP:';
+      break;
+    case 'Password Reset OTP':
+      subject = 'Your Forgot Password OTP from Hospital';
+      heading = 'Reset Your Password';
+      message = 'You requested to reset your password. To continue with the password reset process, please use the following OTP:';
+      break;
+    case 'Registration Resend OTP':
+      subject = 'Your Register Resend OTP from Hospital';
+      heading = 'Welcome to Syncly!';
+      message = 'Here is your resent registration OTP. To complete your registration, please use the following OTP:';
+      break;
+    case 'Password Reset Resend OTP':
+      subject = 'Your Forgot Password Resend OTP from Hospital';
+      heading = 'Reset Your Password';
+      message = 'Here is your resent password reset OTP. To continue with the password reset process, please use the following OTP:';
+      break;
+    default:
+      subject = 'Your Register OTP from Hospital';
+      heading = 'Welcome to Syncly!';
+      message = 'Thank you for registering with us. To complete your registration, please use the following OTP:';
   }
+  
+  console.log('Email subject set to:', subject);
   
   const mailOptions = {
     from: process.env.EMAIL_USER,

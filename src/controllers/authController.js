@@ -33,7 +33,9 @@ exports.registerOTP = async (req, res) => {
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
     const otp = generateOTP(email);
+    console.log('Registration OTP generated for:', email);
     const emailResult = await sendOTPEmail(email, otp, 'Registration OTP');
+    console.log('Email type sent:', 'Registration OTP');
     if (!emailResult.success) {
       await PendingRegistration.deleteOne({ email });
       return res.status(500).json({ success: false, message: 'Failed to send OTP email', error: emailResult.error });
@@ -237,7 +239,9 @@ exports.requestPasswordReset = async (req, res) => {
     }
 
     const otp = generateOTP(email);
+    console.log('Forgot password OTP generated for:', email);
     const emailResult = await sendOTPEmail(email, otp, 'Password Reset OTP');
+    console.log('Email type sent:', 'Password Reset OTP');
 
     if (!emailResult.success) {
       return res.status(500).json({
@@ -389,7 +393,9 @@ exports.resendOTP = async (req, res) => {
         return res.status(400).json({ success: false, message: 'No pending registration found for this email. Please register again.' });
       }
       const otp = generateOTP(email);
-      const emailResult = await sendOTPEmail(email, otp, 'Registration OTP');
+      console.log('Resend Registration OTP for:', email);
+      const emailResult = await sendOTPEmail(email, otp, 'Registration Resend OTP');
+      console.log('Email type sent:', 'Registration Resend OTP');
       if (!emailResult.success) {
         return res.status(500).json({ success: false, message: 'Failed to send OTP email', error: emailResult.error });
       }
@@ -401,7 +407,9 @@ exports.resendOTP = async (req, res) => {
         return res.status(404).json({ success: false, message: 'User not found or not verified' });
       }
       const otp = generateOTP(email);
-      const emailResult = await sendOTPEmail(email, otp, 'Password Reset OTP');
+      console.log('Resend Forgot Password OTP for:', email);
+      const emailResult = await sendOTPEmail(email, otp, 'Password Reset Resend OTP');
+      console.log('Email type sent:', 'Password Reset Resend OTP');
       if (!emailResult.success) {
         return res.status(500).json({ success: false, message: 'Failed to send OTP email', error: emailResult.error });
       }
