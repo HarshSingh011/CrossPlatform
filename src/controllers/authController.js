@@ -7,42 +7,102 @@ const PendingRegistration = require('../models/PendingRegistration');
 exports.registerOTP = async (req, res) => {
   try {
     const { username, email, password } = req.body;
+    console.log('=== REGISTER OTP API HIT ===');
+    console.log('Request body:', { username, email, password: password ? '***' : undefined });
 
     if (!isValidEmail(email)) {
+      console.log('Invalid email format:', email);
       return res.status(400).json({ success: false, message: 'Invalid email format' });
     }
     if (typeof password !== 'string' || password.length === 0) {
+      console.log('Password validation failed - missing or empty');
       return res.status(400).json({ success: false, message: 'Password is required' });
     }
     if (!isValidPassword(password)) {
       const errors = getPasswordValidationErrors(password || '');
+      console.log('Password validation failed:', errors);
       return res.status(400).json({ success: false, message: 'Password does not meet requirements', errors });
     }
-    // Only block registration if a verified user exists
+    
+    // Check for existing verified user
+    console.log('Checking for existing verified user with email:', email, 'username:', username);
     const existingUser = await User.findOne({
       $or: [{ email }, { username }],
       isVerified: true
     });
+    
     if (existingUser) {
+      console.log('Found existing verified user:', {
+        id: existingUser._id,
+        email: existingUser.email,
+        username: existingUser.username,
+        isVerified: existingUser.isVerified
+      });
       return res.status(400).json({ success: false, message: 'User with this email or username already exists' });
     }
+    
+    console.log('No existing verified user found');
+    
+    // Check for existing unverified user in main collection
+    const existingUnverified = await User.findOne({
+      $or: [{ email }, { username }],
+      isVerified: false
+    });
+    
+    if (existingUnverified) {
+      console.log('Found existing unverified user:', {
+        id: existingUnverified._id,
+        email: existingUnverified.email,
+        username: existingUnverified.username,
+        isVerified: existingUnverified.isVerified
+      });
+    } else {
+      console.log('No existing unverified user found');
+    }
+    
+    // Check pending registrations
+    const existingPending = await PendingRegistration.findOne({ email });
+    if (existingPending) {
+      console.log('Found existing pending registration:', {
+        email: existingPending.email,
+        username: existingPending.username,
+        createdAt: existingPending.createdAt
+      });
+    } else {
+      console.log('No existing pending registration found');
+    }
+    
     // Upsert pending registration in DB
-    await PendingRegistration.findOneAndUpdate(
+    console.log('Creating/updating pending registration for:', email);
+    const pendingReg = await PendingRegistration.findOneAndUpdate(
       { email },
       { email, username, password, createdAt: new Date() },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
+    console.log('Pending registration saved:', {
+      email: pendingReg.email,
+      username: pendingReg.username,
+      id: pendingReg._id
+    });
+    
     const otp = generateOTP(email);
     console.log('Registration OTP generated for:', email);
     const emailResult = await sendOTPEmail(email, otp, 'Registration OTP');
     console.log('Email type sent:', 'Registration OTP');
+    
     if (!emailResult.success) {
+      console.log('Email sending failed:', emailResult.error);
       await PendingRegistration.deleteOne({ email });
+      console.log('Deleted pending registration due to email failure');
       return res.status(500).json({ success: false, message: 'Failed to send OTP email', error: emailResult.error });
     }
+    
+    console.log('Registration OTP process completed successfully for:', email);
     return res.status(200).json({ success: true, message: 'OTP has been sent to your email' });
   } catch (error) {
+    console.error('=== REGISTER OTP ERROR ===');
     console.error('Registration error:', error);
+    console.error('Stack trace:', error.stack);
     return res.status(500).json({ success: false, message: 'Error during registration process', error: error.message });
   }
 };
