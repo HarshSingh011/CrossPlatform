@@ -389,7 +389,7 @@ exports.resendOTP = async (req, res) => {
         return res.status(400).json({ success: false, message: 'No pending registration found for this email. Please register again.' });
       }
       const otp = generateOTP(email);
-      const emailResult = await sendOTPEmail(email, otp, 'Registration OTP');
+      const emailResult = await sendOTPEmail(email, otp, 'Registration Resend OTP');
       if (!emailResult.success) {
         return res.status(500).json({ success: false, message: 'Failed to send OTP email', error: emailResult.error });
       }
@@ -401,7 +401,7 @@ exports.resendOTP = async (req, res) => {
         return res.status(404).json({ success: false, message: 'User not found or not verified' });
       }
       const otp = generateOTP(email);
-      const emailResult = await sendOTPEmail(email, otp, 'Password Reset OTP');
+      const emailResult = await sendOTPEmail(email, otp, 'Password Reset Resend OTP');
       if (!emailResult.success) {
         return res.status(500).json({ success: false, message: 'Failed to send OTP email', error: emailResult.error });
       }
