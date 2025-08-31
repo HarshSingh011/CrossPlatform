@@ -61,6 +61,7 @@ exports.verifyOTP = (email, otp) => {
 };
 
 exports.sendOTPEmail = async (email, otp, type = 'Registration OTP') => {
+  console.log('sendOTPEmail called with type:', type);
   let subject, heading, message;
   
   switch (type) {
@@ -89,6 +90,8 @@ exports.sendOTPEmail = async (email, otp, type = 'Registration OTP') => {
       heading = 'Welcome to Syncly!';
       message = 'Thank you for registering with us. To complete your registration, please use the following OTP:';
   }
+  
+  console.log('Email subject set to:', subject);
   
   const mailOptions = {
     from: process.env.EMAIL_USER,
